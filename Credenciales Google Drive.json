@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "tareafinal-aws-ca-gr-dp",
+  "private_key_id": "6d69f4a99324fd49c2e776172df28267069c939c",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQD6mnnZO2eIvk2G\nupfBoBE4AG5wMGarU3QsrEqHr2dpxTBqBI1IOnwi8TSbW2ru1X9j6jGoyxoe2P5h\n4w/wWwwdp9j+nRRJgQNxwYznghhYr+lCqjirBLZ2FnWL71GY06UKxVLUFZY5+u0t\nPO+AlIF/FlGmeuq1IXsHgeW7fkrKcQDtXVINUILfRApSFTTvEGebpyVv2BS/t7c4\nO59Kqwms+9dzb8NQYlnV+cwehw3iUTm6xD1bkkGY8j7pasuQSRwGm/DL1/LQeF0L\nYle+GgQak5UUJ6zxTh40pyNDKLrv3P7byL/qOcdwBETOJxRWHiC1rznmCI1P8Rpo\nd52jmOEtAgMBAAECggEAUW+7owUz6vL0nJCsWiabEdjKCrkf1BMFkLLYcWllsLB8\nwCcEhnFC/9PkZYv6nuxQPnbPdmux7E5VtBemiVP9BvIRiQQgoJZFOUVNdboIEWHw\n6lIIokKgzJUV08iMep5kZrCi7vqo2+SYCHhh2CXqQxNMq04MUZo0scbbkedDhK85\nnyqM+hyI7ElnR6Huyh0JzP6+Hsx5Jk0wGWmlG2BHkLsPkOqdNmZEEAFRl+pOb2lq\nprEwaWakeDSVInGAJf3UeLiVyySc9fQo3NXGjRMLyl+oeTPDLDCNHsua/Qo+N3xy\nmiqoJtRFPcu92RHoslxeeZrwnlAda8Vk9cVJK7nr/QKBgQD/HGSq4cFZprL8choc\nfX0A1r5FUldkki2En677d7aCO7gXH5wC2Wppuxx0mTpSNzBdFgJGDhd5De76b6lg\nhTita0LRYf9mSh5TtJN5h/xTfq6GWhsyM2LQJvxuvCkGl+l4ekU9Z8uUrzFOF/Cr\n++XBX2JnLdbaWLCzt9V0QUCxVwKBgQD7eg+rpVUdHlWCjqXURmZ7YkZxAOYbBMAU\nojeHW/vi5OHODhszMB01NRa1WYW63dIK+y/R40pFMngmhTD/P+40RuEtHryyPP1D\nwjchAs4wJzTmO0EENWTaKOunhoPnDJZBy/bCHbGex8i9E2wU834Rr2ciHJeiyaLX\nCxi4ZD4bGwKBgHd77e5XND7wI663JmGnqK+G5LEFIud4y5btT4B6DmIq5Er4RBLV\nj9CbkXVO+xDcxmsizsfO+9F35DEpsVQCsYwPy8jTtFJNbqzXy6bFOTpGACnu9APs\nK2DAkcSvnit3ZSNHaTyca65k65ve/JsgrPiH20fmIVY86e4SsQf1M/6bAoGBALDt\nnurXxrtW5TiW3issYNv8N603wa1OuUmLG+BbIivvdsL/f7mS52nQ8SokUwc3G5lo\nQqu76zwmFwya9u8O7qvPFowlLQOGD3ZFxX2vOJv+aaR2Gfc5DbzDv5C8/j5nx6uB\nMho+xAH/c8c7S/atnYwZyUjhrvn0PWJoxzqsJFnzAoGBAJETpVvNDjVT/MRerth/\nG5iHC8qNe38JiDLjSFxbr0ZGROAE/VGb7ckQiwHF+n4YQREh0HKt55sDi9ytvsiz\ncbilJvE9N1M8qGurueYKVPktBF7k4n/N5kYm3pDz5z7V62VFdt5O7zUYm878GJpZ\nUnkpsynr2cu1jYhlQyX8QlWo\n-----END PRIVATE KEY-----\n",
+  "client_email": "lambda-drive-access@tareafinal-aws-ca-gr-dp.iam.gserviceaccount.com",
+  "client_id": "104667982330281120822",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/lambda-drive-access%40tareafinal-aws-ca-gr-dp.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}
