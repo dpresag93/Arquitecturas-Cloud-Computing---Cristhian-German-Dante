@@ -1,0 +1,470 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  API Gateway + Lambda (VPC + NAT) + Cognito (usuarios/grupo) + RDS + S3.
+  Lambda procesa Google Sheets desde Google Drive.
+
+########################################
+# PARAMETERS
+########################################
+Parameters:
+  DBUsername:
+    Type: String
+    Default: appuser
+
+  DBPassword:
+    Type: String
+    NoEcho: true
+    Default: "ContraseñaSegura123!"
+
+  GoogleDriveFolderId:
+    Type: String
+    Default: "1QJI8UEgL0OoS3O7NycesPZeg36FhE3PM"
+
+  GoogleServiceAccountSecretString:
+    Type: String
+    NoEcho: true
+
+  LambdaLayerBucket:
+    Type: String
+    Description: Nombre del bucket S3 donde subiste python.zip
+    Default: ziplamdbartareaaws
+
+  LambdaLayerKey:
+    Type: String
+    Default: python.zip
+
+########################################
+# VPC, SUBNETS, ROUTING
+########################################
+Resources:
+
+  AppVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  AttachIGW:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref AppVPC
+      InternetGatewayId: !Ref InternetGateway
+
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref AppVPC
+      CidrBlock: 10.0.1.0/24
+      MapPublicIpOnLaunch: true
+      AvailabilityZone: !Select [0, !GetAZs ""]
+
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref AppVPC
+      CidrBlock: 10.0.2.0/24
+      AvailabilityZone: !Select [0, !GetAZs ""]
+
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref AppVPC
+      CidrBlock: 10.0.3.0/24
+      AvailabilityZone: !Select [1, !GetAZs ""]
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref AppVPC
+
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: AttachIGW
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet
+      RouteTableId: !Ref PublicRouteTable
+
+  NatEIP:
+    Type: AWS::EC2::EIP
+    DependsOn: AttachIGW
+    Properties:
+      Domain: vpc
+
+  NatGateway:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatEIP.AllocationId
+      SubnetId: !Ref PublicSubnet
+
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref AppVPC
+
+  PrivateRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway
+
+  PrivateSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet1
+      RouteTableId: !Ref PrivateRouteTable
+
+  PrivateSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet2
+      RouteTableId: !Ref PrivateRouteTable
+
+########################################
+# SECURITY GROUPS
+########################################
+  LambdaSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Lambda SG
+      VpcId: !Ref AppVPC
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+
+  RDSSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: RDS SG
+      VpcId: !Ref AppVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !Ref LambdaSG
+
+########################################
+# S3
+########################################
+  BackupBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub tarea-final-backup-${AWS::AccountId}-${AWS::Region}
+    DeletionPolicy: Retain
+
+########################################
+# SECRETS
+########################################
+  GoogleServiceAccountSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: tarea-final-google-service-account
+      SecretString: !Ref GoogleServiceAccountSecretString
+
+########################################
+# RDS
+########################################
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Private DB subnets
+      SubnetIds:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+
+  AppDB:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      Engine: postgres
+      DBInstanceClass: db.t3.micro
+      AllocatedStorage: 20
+      DBName: surveydb
+      MasterUsername: !Ref DBUsername
+      MasterUserPassword: !Ref DBPassword
+      PubliclyAccessible: false
+      VPCSecurityGroups: [!Ref RDSSG]
+      DBSubnetGroupName: !Ref DBSubnetGroup
+
+########################################
+# LAMBDA LAYER
+########################################
+  DependenciesLayer:
+    Type: AWS::Lambda::LayerVersion
+    Properties:
+      LayerName: tarea-final-dependencies
+      CompatibleRuntimes: [python3.11]
+      Content:
+        S3Bucket: !Ref LambdaLayerBucket
+        S3Key: !Ref LambdaLayerKey
+
+########################################
+# IAM ROLE LAMBDA
+########################################
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+      Policies:
+        - PolicyName: ExtraPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - secretsmanager:GetSecretValue
+                Resource: "*"
+
+########################################
+# LAMBDA
+########################################
+  AppLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: TareaFinalLambda
+      Runtime: python3.11
+      Handler: index.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 300
+      MemorySize: 512
+      Layers: [!Ref DependenciesLayer]
+      VpcConfig:
+        SecurityGroupIds: [!Ref LambdaSG]
+        SubnetIds: [!Ref PrivateSubnet1, !Ref PrivateSubnet2]
+      Environment:
+        Variables:
+          BUCKET_NAME: !Ref BackupBucket
+          DB_HOST: !GetAtt AppDB.Endpoint.Address
+          DB_PORT: !GetAtt AppDB.Endpoint.Port
+          DB_NAME: surveydb
+          DB_USER: !Ref DBUsername
+          DB_PASSWORD: !Ref DBPassword
+          DRIVE_FOLDER_ID: !Ref GoogleDriveFolderId
+          GOOGLE_SECRET_ARN: !Ref GoogleServiceAccountSecret
+      Code:
+        ZipFile: |
+          import os, json, boto3, psycopg2, traceback
+          from google.oauth2 import service_account
+          from googleapiclient.discovery import build
+
+          s3 = boto3.client("s3")
+          secrets = boto3.client("secretsmanager")
+
+          def lambda_handler(event, context):
+              try:
+                  creds = json.loads(secrets.get_secret_value(
+                      SecretId=os.environ["GOOGLE_SECRET_ARN"]
+                  )["SecretString"])
+
+                  credentials = service_account.Credentials.from_service_account_info(
+                      creds,
+                      scopes=[
+                          "https://www.googleapis.com/auth/drive.readonly",
+                          "https://www.googleapis.com/auth/spreadsheets.readonly"
+                      ]
+                  )
+
+                  drive = build("drive", "v3", credentials=credentials)
+                  sheets = build("sheets", "v4", credentials=credentials)
+
+                  files = drive.files().list(
+                      q=f"'{os.environ['DRIVE_FOLDER_ID']}' in parents and mimeType='application/vnd.google-apps.spreadsheet'",
+                      fields="files(id,name)"
+                  ).execute().get("files", [])
+
+                  conn = psycopg2.connect(
+                      host=os.environ["DB_HOST"],
+                      port=os.environ["DB_PORT"],
+                      user=os.environ["DB_USER"],
+                      password=os.environ["DB_PASSWORD"],
+                      dbname=os.environ["DB_NAME"]
+                  )
+                  cur = conn.cursor()
+
+                  cur.execute("""
+                    CREATE TABLE IF NOT EXISTS survey_data (
+                      id SERIAL PRIMARY KEY,
+                      sheet_name TEXT,
+                      col1 TEXT,
+                      col2 TEXT
+                    )
+                  """)
+
+                  for f in files:
+                      values = sheets.spreadsheets().values().get(
+                          spreadsheetId=f["id"],
+                          range="A1:Z1000"
+                      ).execute().get("values", [])
+
+                      s3.put_object(
+                          Bucket=os.environ["BUCKET_NAME"],
+                          Key=f"{f['name']}.json",
+                          Body=json.dumps(values),
+                          ContentType="application/json"
+                      )
+
+                      for row in values[1:]:
+                          cur.execute(
+                              "INSERT INTO survey_data (sheet_name, col1, col2) VALUES (%s,%s,%s)",
+                              (f["name"], row[0] if len(row)>0 else None, row[1] if len(row)>1 else None)
+                          )
+
+                  conn.commit()
+                  cur.close()
+                  conn.close()
+                  return {"statusCode": 200, "body": "OK"}
+
+              except Exception:
+                  print(traceback.format_exc())
+                  raise
+
+########################################
+# COGNITO (USUARIOS + GRUPO)
+########################################
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: TareaFinalUserPool
+      AutoVerifiedAttributes: [email]
+
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      UserPoolId: !Ref UserPool
+      GenerateSecret: false
+
+  AuthorizedGroup:
+    Type: AWS::Cognito::UserPoolGroup
+    Properties:
+      GroupName: AuthorizedUsers
+      UserPoolId: !Ref UserPool
+
+  User1:
+    Type: AWS::Cognito::UserPoolUser
+    Properties:
+      UserPoolId: !Ref UserPool
+      Username: german93.ramirez@gmail.com
+      UserAttributes:
+        - Name: email
+          Value: german93.ramirez@gmail.com
+        - Name: email_verified
+          Value: "true"
+
+  User2:
+    Type: AWS::Cognito::UserPoolUser
+    Properties:
+      UserPoolId: !Ref UserPool
+      Username: dante.presag@gmail.com
+      UserAttributes:
+        - Name: email
+          Value: dante.presag@gmail.com
+        - Name: email_verified
+          Value: "true"
+
+  User3:
+    Type: AWS::Cognito::UserPoolUser
+    Properties:
+      UserPoolId: !Ref UserPool
+      Username: cris.condor94@gmail.com
+      UserAttributes:
+        - Name: email
+          Value: cris.condor94@gmail.com
+        - Name: email_verified
+          Value: "true"
+
+  User1ToGroup:
+    Type: AWS::Cognito::UserPoolUserToGroupAttachment
+    DependsOn: [User1, AuthorizedGroup]
+    Properties:
+      UserPoolId: !Ref UserPool
+      Username: german93.ramirez@gmail.com
+      GroupName: AuthorizedUsers
+
+  User2ToGroup:
+    Type: AWS::Cognito::UserPoolUserToGroupAttachment
+    DependsOn: [User2, AuthorizedGroup]
+    Properties:
+      UserPoolId: !Ref UserPool
+      Username: dante.presag@gmail.com
+      GroupName: AuthorizedUsers
+
+########################################
+# API GATEWAY
+########################################
+  RestApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: TareaFinalApi
+
+  ApiResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApi
+      ParentId: !GetAtt RestApi.RootResourceId
+      PathPart: surveys
+
+  CognitoAuthorizer:
+    Type: AWS::ApiGateway::Authorizer
+    Properties:
+      Name: CognitoAuthorizer
+      Type: COGNITO_USER_POOLS
+      RestApiId: !Ref RestApi
+      IdentitySource: method.request.header.Authorization
+      ProviderARNs: [!GetAtt UserPool.Arn]
+
+  ApiMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApi
+      ResourceId: !Ref ApiResource
+      HttpMethod: POST
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref CognitoAuthorizer
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AppLambda.Arn}/invocations
+
+  LambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref AppLambda
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RestApi}/*/POST/surveys
+
+  ApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn: ApiMethod
+    Properties:
+      RestApiId: !Ref RestApi
+      StageName: prod
+
+########################################
+# OUTPUTS
+########################################
+Outputs:
+  ApiEndpoint:
+    Value: !Sub https://${RestApi}.execute-api.${AWS::Region}.amazonaws.com/prod/surveys
+  UserPoolId:
+    Value: !Ref UserPool
